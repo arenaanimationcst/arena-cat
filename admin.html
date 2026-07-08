@@ -311,9 +311,8 @@ function clearFilters(){
 
 function renderStats(records){
   const total = records.length;
-  const done = records.filter(r=>r.status==='done').length;
-  const pending = records.filter(r=>r.status==='pending' || !r.status).length;
-  const errors = records.filter(r=>r.status==='error').length;
+  const completed = records.filter(r=>r.profile).length;
+  const inProgress = total - completed;
 
   const counts = {};
   records.forEach(r=>{
@@ -324,9 +323,8 @@ function renderStats(records){
 
   document.getElementById('statPills').innerHTML = `
     <div class="pill"><b>${total}</b>Total Submissions</div>
-    <div class="pill"><b>${done}</b>Reports Ready</div>
-    <div class="pill"><b>${pending}</b>Generating</div>
-    <div class="pill"><b>${errors}</b>Errors</div>
+    <div class="pill"><b>${completed}</b>Completed</div>
+    <div class="pill"><b>${inProgress}</b>In Progress</div>
     <div class="pill"><b>${topSignal ? INTEREST_LABELS[topSignal] : '—'}</b>Most Common Interest</div>
   `;
 }
@@ -472,6 +470,7 @@ window.checkLogin = function(){
     if(!FIREBASE_CONFIGURED){
       document.getElementById('configWarning').style.display = 'block';
     }
+    loadDashboard(); // load in the background so data's ready the moment you click the tab
   } else {
     document.getElementById('loginErr').style.display = 'block';
   }
