@@ -362,19 +362,6 @@ function generateCatReportPdf(studentName, profile) {
   courseLines.forEach(line => { doc.text(line, MARGIN, y); y += 4.6; });
   y += 4;
 
-  ensureSpace(20);
-  y = catDrawSectionBar(doc, MARGIN, y, CW, "FOR YOUR COUNSELLOR — TALKING POINTS") + 5;
-  doc.setTextColor(...c.bodyGray);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  texts.counselorPoints.forEach(point => {
-    const lines = doc.splitTextToSize(`\u2022  ${point}`, CW);
-    ensureSpace(lines.length * 4.6 + 2);
-    lines.forEach(line => { doc.text(line, MARGIN, y); y += 4.6; });
-    y += 1.5;
-  });
-  y += 4;
-
   ensureSpace(30);
   y = catDrawQuoteBox(doc, MARGIN, y,
     CW, "The right career isn't the one that sounds impressive — it's the one that matches how you already think.") + 6;
@@ -397,4 +384,84 @@ function downloadCatReportPdf(studentName, profile) {
   const doc = generateCatReportPdf(studentName, profile);
   const safeName = studentName.replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/\s+/g, "_");
   doc.save(`${safeName}_CAT_Report.pdf`);
+}
+
+/* ==========================================================================
+   COUNSELLOR NOTES — separate, admin-only document.
+   Never generated or offered anywhere in index.html — only admin.html calls
+   this, so the student never sees the talking points written about them.
+   ========================================================================== */
+function generateCounselorNotesPdf(studentName, profile) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const MARGIN = 22, CONTENT_TOP = 32, CONTENT_BOTTOM = pageH - 18;
+  const CW = pageW - MARGIN * 2;
+
+  const texts = catBuildReportTexts(profile);
+  const c = CAT_PDF_COLORS;
+  let y = CONTENT_TOP;
+
+  catFillPageBg(doc, pageW, pageH);
+
+  function ensureSpace(neededH) {
+    if (y + neededH > CONTENT_BOTTOM) { doc.addPage(); catFillPageBg(doc, pageW, pageH); y = CONTENT_TOP; }
+  }
+
+  doc.setTextColor(...c.orange);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.text("INTERNAL — COUNSELLOR NOTES", MARGIN, y);
+  y += 8;
+  doc.setTextColor(...c.charcoal);
+  doc.setFontSize(20);
+  doc.text(`${studentName} — Conversation Prep`, MARGIN, y);
+  y += 4;
+  doc.setFillColor(...c.orange);
+  doc.rect(MARGIN, y, CW, 1.2, "F");
+  y += 8;
+
+  // Quick score summary — everything a counsellor needs at a glance
+  y = catDrawSectionBar(doc, MARGIN, y, CW, "SCORE SUMMARY") + 5;
+  const ds = profile.decisionStyle;
+  const summaryLines = [
+    `Interest: ${profile.interest}`,
+    `Top Needs: ${profile.needsTop2.join(", ")}`,
+    `Decision Style: ${ds.towardAway} / ${ds.internalExternal} / ${ds.convincer}`,
+    `Commitment: ${profile.commitment.bucket} (${profile.commitment.points} pts)`,
+    `Readiness: ${profile.readiness.bucket} (${profile.readiness.points} pts)`,
+    `Recommended Course: ${texts.courseName}`,
+  ];
+  doc.setTextColor(...c.bodyGray);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  summaryLines.forEach(line => { doc.text(`•  ${line}`, MARGIN, y); y += 6; });
+  y += 4;
+
+  ensureSpace(20);
+  y = catDrawSectionBar(doc, MARGIN, y, CW, "TALKING POINTS FOR THIS CONVERSATION") + 5;
+  doc.setTextColor(...c.bodyGray);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  texts.counselorPoints.forEach(point => {
+    const lines = doc.splitTextToSize(`\u2022  ${point}`, CW);
+    ensureSpace(lines.length * 4.6 + 2);
+    lines.forEach(line => { doc.text(line, MARGIN, y); y += 4.6; });
+    y += 1.5;
+  });
+
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    catDrawHeaderFooter(doc, pageW, pageH, studentName, p, totalPages);
+  }
+
+  return doc;
+}
+
+function downloadCounselorNotesPdf(studentName, profile) {
+  const doc = generateCounselorNotesPdf(studentName, profile);
+  const safeName = studentName.replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/\s+/g, "_");
+  doc.save(`${safeName}_Counsellor_Notes.pdf`);
 }
