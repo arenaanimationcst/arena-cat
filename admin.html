@@ -75,7 +75,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
   <div style="max-width:380px;width:90%;background:rgba(255,255,255,.04);border:1px solid rgba(255,212,0,.22);padding:2.5rem;text-align:center">
     <div style="font-family:var(--font-display);font-size:1.8rem;margin-bottom:.3rem">CAT <em style="color:var(--yellow);font-style:italic">Admin</em></div>
     <div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--yellow);margin-bottom:1.5rem">Career Assessment Test · Arena Animation</div>
-    <input type="password" id="loginPw" placeholder="Enter admin password" style="margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkLogin()">
+    <input type="password" id="loginPw" placeholder="Enter admin password" autocomplete="new-password" style="margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkLogin()">
     <div id="loginErr" style="color:#EF9A9A;font-size:.8rem;margin-bottom:1rem;display:none">Incorrect password.</div>
     <button class="btn full" onclick="checkLogin()">Enter</button>
   </div>
@@ -190,7 +190,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
         </div>
         <div class="form-group" style="flex:1;min-width:220px">
           <label>Search (name / mobile / email)</label>
-          <input type="text" id="filterSearch" placeholder="Search...">
+          <input type="text" id="filterSearch" placeholder="Search..." autocomplete="off" name="cat-admin-search-nofill">
         </div>
         <div class="form-group">
           <button class="btn" onclick="applyFilters()">Apply Filters</button>
@@ -260,9 +260,52 @@ async function loadDashboard(){
   const tbody = document.getElementById('resultsTbody');
   tbody.innerHTML = '<tr><td colspan="14" class="loading">Loading…</td></tr>';
   try{
-    const snap = await _db.collection(RESULTS_COL).get();
-    allRecords = [];
-    snap.forEach(d => allRecords.push({ id: d.id, ...d.data() }));
+    const [codesSnap, resultsSnap] = await Promise.all([
+      _db.collection(CODES_COL).get(),
+      _db.collection(RESULTS_COL).get(),
+    ]);
+
+    const resultsByCode = {};
+    const resultsById = {};
+    resultsSnap.forEach(d => {
+      const r = { id: d.id, ...d.data() };
+      resultsById[d.id] = r;
+      if (r.code) resultsByCode[r.code] = r;
+    });
+
+    const merged = [];
+    const usedResultIds = new Set();
+
+    // Every generated code shows up — Pending until a matching result exists.
+    codesSnap.forEach(d => {
+      const code = { codeId: d.id, ...d.data() };
+      const result = (code.resultId && resultsById[code.resultId]) || resultsByCode[code.codeId] || null;
+      if (result) usedResultIds.add(result.id);
+      merged.push({
+        id: result ? result.id : null,
+        code: code.codeId,
+        name: (result && result.name) || code.name,
+        mobile: (result && result.mobile) || code.mobile,
+        email: (result && result.email) || null,
+        stream: (result && result.stream) || null,
+        assignedCounselor: (result && result.assignedCounselor) || code.assignedCounselor || null,
+        profile: result ? result.profile : null,
+        createdAt: (result && result.createdAt) || code.generatedAt,
+      });
+    });
+
+    // Safety net: a result whose code doc was deleted/missing should still show up.
+    resultsSnap.forEach(d => {
+      if (!usedResultIds.has(d.id)) {
+        const r = { id: d.id, ...d.data() };
+        merged.push({
+          id: r.id, code: r.code || null, name: r.name, mobile: r.mobile, email: r.email,
+          stream: r.stream, assignedCounselor: r.assignedCounselor, profile: r.profile, createdAt: r.createdAt,
+        });
+      }
+    });
+
+    allRecords = merged;
     applyFilters();
   }catch(e){
     console.error(e);
@@ -344,7 +387,7 @@ function renderTable(records){
     const ds = p.decisionStyle || {};
     const statusHtml = r.profile ? '<span class="status-done">✓ Completed</span>' : '<span class="status-pending">⏳ In Progress</span>';
     const reportHtml = r.profile
-      ? `<a class="pdflink" href="#" onclick="downloadReport('${r.id}');return false">Download</a>`
+      ? `<a class="pdflink" href="#" onclick="downloadReport('${r.code}');return false">Download</a> · <a class="pdflink" href="#" onclick="downloadCounselorNotes('${r.code}');return false">Counsellor Notes</a>`
       : '—';
     const needsHtml = (p.needsTop2||[]).map(n=>`<span class="badge">${n}</span>`).join(' ');
     const decisionHtml = [ds.towardAway, ds.internalExternal, ds.convincer].filter(Boolean).join(' / ');
@@ -372,8 +415,8 @@ function renderTable(records){
 // No Storage, no Cloud Function — the report is rebuilt on the fly from the
 // profile already sitting in this Firestore doc, using the same pdf-generator.js
 // the student's browser used at submission time.
-window.downloadReport = function(recordId){
-  const record = allRecords.find(r => r.id === recordId);
+window.downloadReport = function(codeId){
+  const record = allRecords.find(r => r.code === codeId);
   if(!record || !record.profile){
     alert('No profile data found for this record.');
     return;
@@ -383,6 +426,22 @@ window.downloadReport = function(recordId){
   }catch(e){
     console.error(e);
     alert('Could not generate PDF. Check the browser console for details.');
+  }
+};
+
+// Admin-only document — talking points and full score breakdown for the
+// counsellor conversation. Never shown or offered to the student.
+window.downloadCounselorNotes = function(codeId){
+  const record = allRecords.find(r => r.code === codeId);
+  if(!record || !record.profile){
+    alert('No profile data found for this record.');
+    return;
+  }
+  try{
+    downloadCounselorNotesPdf(record.name || 'Student', record.profile);
+  }catch(e){
+    console.error(e);
+    alert('Could not generate counsellor notes PDF. Check the browser console for details.');
   }
 };
 
