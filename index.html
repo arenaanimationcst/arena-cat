@@ -221,7 +221,10 @@ input,select{width:100%;padding:.8rem;background:#1f1f1f;border:1px solid rgba(2
       <div class="stat-card"><div class="big">34</div><div class="lbl">Questions, ~12 minutes</div></div>
       <div class="stat-card"><div class="big">05</div><div class="lbl">Career-defining dimensions</div></div>
       <div class="stat-card"><div class="big">01</div><div class="lbl">Personalised PDF report</div></div>
-      <div class="stat-card"><div class="big">₹0</div><div class="lbl">Completely free</div></div>
+      <div class="stat-card" id="priceStatCard">
+        <div class="big"><span id="priceOriginal" style="text-decoration:line-through;color:var(--text-muted);font-size:1.05rem;margin-right:.4rem">₹999</span><span id="priceCurrent">₹49</span></div>
+        <div class="lbl">Test + 1-Hr Counselling Session — Limited Time</div>
+      </div>
     </div>
   </div>
 </section>
@@ -658,6 +661,7 @@ const firebaseConfig = {
 };
 const CODES_COL = "cat_codes";
 const RESULTS_COL = "cat_results";
+const CONFIG_COL = "cat_config";
 
 firebase.initializeApp(firebaseConfig);
 const _db = firebase.firestore();
@@ -666,6 +670,24 @@ let currentQ = 0;
 let answers = new Array(CAT_QUESTIONS.length).fill(null);
 let studentData = {};
 let verifiedRecord = null;
+
+/* ============ PRICING (editable anytime from admin.html, no code changes) ============ */
+// The card already shows ₹999→₹49 by default in the HTML, so if this fetch
+// fails or Firestore isn't reachable, the page still looks correct — this
+// only overwrites those numbers if an admin has actually changed them.
+(async function loadPricingConfig() {
+  try {
+    const snap = await _db.collection(CONFIG_COL).doc("pricing").get();
+    if (snap.exists) {
+      const cfg = snap.data();
+      if (cfg.originalPrice != null) document.getElementById("priceOriginal").textContent = `₹${cfg.originalPrice}`;
+      if (cfg.currentPrice != null) document.getElementById("priceCurrent").textContent = `₹${cfg.currentPrice}`;
+      if (cfg.label) document.querySelector("#priceStatCard .lbl").textContent = cfg.label;
+    }
+  } catch (e) {
+    console.warn("Pricing config not loaded, using default display:", e);
+  }
+})();
 
 /* ============ CODE VERIFICATION ============ */
 window.verifyCode = async function () {
