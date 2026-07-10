@@ -219,7 +219,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>Name</th><th>Mobile</th><th>Email</th><th>Stream</th>
+              <th>Date</th><th>Code</th><th>Name</th><th>Mobile</th><th>Email</th><th>Stream</th>
               <th>Counsellor</th>
               <th>Interest</th><th>Top Needs</th><th>Decision Style</th>
               <th>Commitment</th><th>Readiness</th><th>Recommended Course</th>
@@ -227,7 +227,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
             </tr>
           </thead>
           <tbody id="resultsTbody">
-            <tr><td colspan="14" class="loading">Enter password to load results…</td></tr>
+            <tr><td colspan="15" class="loading">Enter password to load results…</td></tr>
           </tbody>
         </table>
       </div>
@@ -273,7 +273,7 @@ let allRecords = [];
 
 async function loadDashboard(){
   const tbody = document.getElementById('resultsTbody');
-  tbody.innerHTML = '<tr><td colspan="14" class="loading">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="15" class="loading">Loading…</td></tr>';
   try{
     const [codesSnap, resultsSnap] = await Promise.all([
       _db.collection(CODES_COL).get(),
@@ -324,7 +324,7 @@ async function loadDashboard(){
     applyFilters();
   }catch(e){
     console.error(e);
-    tbody.innerHTML = '<tr><td colspan="14" class="loading">Failed to load. Check Firebase configuration and Firestore rules.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" class="loading">Failed to load. Check Firebase configuration and Firestore rules.</td></tr>';
   }
 }
 
@@ -390,7 +390,7 @@ function renderStats(records){
 function renderTable(records){
   const tbody = document.getElementById('resultsTbody');
   if(records.length === 0){
-    tbody.innerHTML = '<tr><td colspan="14" class="loading">No records match the current filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" class="loading">No records match the current filters.</td></tr>';
     return;
   }
   records.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
@@ -406,9 +406,13 @@ function renderTable(records){
       : '—';
     const needsHtml = (p.needsTop2||[]).map(n=>`<span class="badge">${n}</span>`).join(' ');
     const decisionHtml = [ds.towardAway, ds.internalExternal, ds.convincer].filter(Boolean).join(' / ');
+    const codeHtml = r.code
+      ? `<span style="font-weight:700">${r.code}</span> <a class="pdflink" href="#" onclick="copyWhatsappForRow('${r.code}');return false" title="Copy WhatsApp message">📋</a>`
+      : '—';
 
     return `<tr>
       <td>${dateDisplay}</td>
+      <td>${codeHtml}</td>
       <td>${r.name||'—'}</td>
       <td>${r.mobile||'—'}</td>
       <td>${r.email||'—'}</td>
@@ -446,6 +450,34 @@ window.downloadReport = function(codeId){
 
 // Admin-only document — talking points and full score breakdown for the
 // counsellor conversation. Never shown or offered to the student.
+function buildWhatsappMessage(name, mobile, code){
+  return `🎯 *Arena Animation CST — Career Assessment Test*
+Hi ${name}!
+You have been registered for the Arena Animation CST Career Assessment Test. Here are your login details:
+👤 *Name:* ${name}
+📱 *Mobile:* ${mobile}
+🔑 *Access Code:* *${code}*
+Use these exact details to start your test. The assessment takes about 12 minutes and gives you a personalised career report with a course recommendation.
+👉 Test Link: https://arenaanimationcst.github.io/arena-cat/
+Good luck! 🌟
+— Arena Animation CST, Fort, Mumbai
+📞 088288 23738`;
+}
+
+// Works for ANY row in the dashboard, any time — completed or still pending,
+// a day old or ten days old — since it rebuilds from data already stored in
+// Firestore rather than depending on the one-time Generate Code screen.
+window.copyWhatsappForRow = function(codeId){
+  const record = allRecords.find(r => r.code === codeId);
+  if(!record){ alert('Could not find this record.'); return; }
+  const msg = buildWhatsappMessage(record.name || '', record.mobile || '', codeId);
+  navigator.clipboard.writeText(msg).then(() => {
+    alert('WhatsApp message copied to clipboard — paste it into WhatsApp now.');
+  }).catch(() => {
+    alert('Could not copy automatically. Message:\n\n' + msg);
+  });
+};
+
 window.downloadCounselorNotes = function(codeId){
   const record = allRecords.find(r => r.code === codeId);
   if(!record || !record.profile){
@@ -494,18 +526,7 @@ window.generateCode = async function(){
 
     lastGeneratedCode = code;
     document.getElementById('genCodeDisplay').textContent = code;
-    document.getElementById('genWhatsapp').value =
-`🎯 *Arena Animation CST — Career Assessment Test*
-Hi ${name}!
-You have been registered for the Arena Animation CST Career Assessment Test. Here are your login details:
-👤 *Name:* ${name}
-📱 *Mobile:* ${mobile}
-🔑 *Access Code:* *${code}*
-Use these exact details to start your test. The assessment takes about 12 minutes and gives you a personalised career report with a course recommendation.
-👉 Test Link: https://arenaanimationcst.github.io/arena-cat/
-Good luck! 🌟
-— Arena Animation CST, Fort, Mumbai
-📞 088288 23738`;
+    document.getElementById('genWhatsapp').value = buildWhatsappMessage(name, mobile, code);
     document.getElementById('genResultWrap').style.display = 'block';
   }catch(e){
     console.error(e);
