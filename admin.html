@@ -63,6 +63,21 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
 .tab-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,212,0,.2);color:var(--text-muted);padding:.7rem 1.4rem;font-size:.82rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;cursor:pointer}
 .tab-btn.active{background:rgba(255,212,0,.12);color:var(--yellow);border-color:var(--yellow)}
 .form-row2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+
+@media (max-width: 860px) {
+  .container{padding:1.2rem 4%}
+  .topbar{padding:.8rem 4%}
+  .card{padding:1.3rem}
+  .form-row2{grid-template-columns:1fr}
+  .filter-row{gap:.7rem}
+  .filter-row .form-group{min-width:0;width:100%}
+  .tabs{flex-direction:column}
+  .tab-btn{width:100%;text-align:center}
+  .stat-pills{gap:.6rem}
+  .pill{padding:.6rem .9rem;font-size:.72rem}
+  table{font-size:.75rem}
+  th,td{padding:.5rem .6rem}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -136,7 +151,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
           <button class="btn" style="padding:.5rem 1rem;font-size:.75rem" onclick="copyCode()">Copy</button>
         </div>
         <label>WhatsApp Message (tap to copy)</label>
-        <textarea id="genWhatsapp" readonly style="width:100%;min-height:110px;background:rgba(255,255,255,.05);border:1px solid rgba(255,212,0,.25);color:var(--cream);padding:.8rem 1rem;font-family:var(--font-body);font-size:.85rem" onclick="this.select()"></textarea>
+        <textarea id="genWhatsapp" readonly style="width:100%;min-height:170px;background:rgba(255,255,255,.05);border:1px solid rgba(255,212,0,.25);color:var(--cream);padding:.8rem 1rem;font-family:var(--font-body);font-size:.85rem" onclick="this.select()"></textarea>
         <button class="btn" style="margin-top:.8rem" onclick="copyWhatsapp()">Copy WhatsApp Message</button>
       </div>
     </div>
@@ -480,17 +495,17 @@ window.generateCode = async function(){
     lastGeneratedCode = code;
     document.getElementById('genCodeDisplay').textContent = code;
     document.getElementById('genWhatsapp').value =
-`Hi ${name}! 🎯
-
-Here's your Career Assessment Test access code from Arena Animation:
-
-*${code}*
-
-Take the test here: https://arenaanimationcst.github.io/arena-cat/
-
-Enter your name, mobile number, and this code to begin. It takes about 10 minutes, and you'll get a personalised PDF report at the end.
-
-See you soon!`;
+`🎯 *Arena Animation CST — Career Assessment Test*
+Hi ${name}!
+You have been registered for the Arena Animation CST Career Assessment Test. Here are your login details:
+👤 *Name:* ${name}
+📱 *Mobile:* ${mobile}
+🔑 *Access Code:* *${code}*
+Use these exact details to start your test. The assessment takes about 12 minutes and gives you a personalised career report with a course recommendation.
+👉 Test Link: https://arenaanimationcst.github.io/arena-cat/
+Good luck! 🌟
+— Arena Animation CST, Fort, Mumbai
+📞 088288 23738`;
     document.getElementById('genResultWrap').style.display = 'block';
   }catch(e){
     console.error(e);
