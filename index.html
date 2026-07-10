@@ -129,6 +129,63 @@ input,select{width:100%;padding:.8rem;background:#1f1f1f;border:1px solid rgba(2
 .screen.active{display:block}
 .result-icon{font-size:3rem;text-align:center;display:block;margin-bottom:.5rem}
 .status-msg{font-size:.85rem;color:var(--text-muted);margin-top:1rem;text-align:center}
+
+/* ============================================================
+   MOBILE — this block was entirely missing before, which is why
+   every grid stayed desktop-width and felt cramped/broken on phones.
+   ============================================================ */
+@media (max-width: 860px) {
+  .section{padding:3rem 0}
+  .section.tight{padding:2rem 0}
+
+  .topbar{padding:.6rem 4%}
+  .topbar .brand img{height:30px}
+  .topbar .brand-text{font-size:.82rem}
+  .topbar .brand-text small{font-size:.52rem;letter-spacing:.1em}
+  .topbar > a.btn{padding:.5rem .9rem;font-size:.7rem}
+
+  .hero{padding:2.2rem 0 2.8rem}
+  .hero-grid{grid-template-columns:1fr;gap:2rem}
+  .hero h1{font-size:1.7rem}
+  .hero .subtitle{font-size:.92rem}
+  .hero-cta{flex-direction:column}
+  .hero-cta .btn{width:100%;text-align:center}
+  .stat-grid{grid-template-columns:1fr 1fr;gap:.7rem}
+  .stat-card{padding:1.1rem}
+  .stat-card .big{font-size:1.6rem}
+  .stat-card .lbl{font-size:.68rem}
+
+  .feature-grid5{grid-template-columns:1fr;gap:1rem}
+  .feature-card{padding:1.3rem}
+
+  .why-grid{grid-template-columns:1fr;gap:1rem;margin-top:1.8rem}
+  .why-feature{padding:1.6rem}
+
+  .roadmap{flex-direction:column;gap:1.8rem;margin-top:2.2rem}
+  .roadmap::before{display:none}
+  .road-step{min-width:0}
+
+  h2{font-size:1.5rem}
+  .subtitle{font-size:.92rem;padding:0 .2rem}
+
+  .card{padding:1.3rem;border-radius:6px}
+  .form-row{grid-template-columns:1fr;gap:0}
+  .q-text{font-size:1.05rem}
+  .option-btn{padding:.8rem 1rem;font-size:.9rem}
+  .q-nav{flex-direction:column-reverse;gap:.7rem}
+  .q-nav .btn{width:100%;text-align:center}
+
+  .floating-cta{right:1rem;bottom:1rem}
+  .floating-cta .btn{padding:.7rem 1.2rem;font-size:.8rem}
+
+  #test-start{padding:3rem 0}
+}
+
+@media (max-width: 420px) {
+  .hero h1{font-size:1.45rem}
+  .stat-grid{grid-template-columns:1fr}
+  .eyebrow{font-size:.68rem}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
