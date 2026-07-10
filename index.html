@@ -333,6 +333,28 @@ input,select{width:100%;padding:.8rem;background:#1f1f1f;border:1px solid rgba(2
         </div>
         <div id="verify-error" style="color:#EF9A9A;font-size:.79rem;margin-top:.5rem;display:none"></div>
         <button class="btn full" id="verifyBtn" style="margin-top:1.2rem" onclick="verifyCode()">Verify &amp; Continue →</button>
+
+        <div style="text-align:center;margin-top:1.2rem">
+          <a href="#" onclick="toggleRequestForm();return false" style="color:var(--yellow);font-size:.85rem;text-decoration:underline">Don't have a code yet? Request one →</a>
+        </div>
+
+        <div id="requestFormWrap" style="display:none;margin-top:1.2rem;border-top:1px solid rgba(255,212,0,.15);padding-top:1.2rem">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="request-name" placeholder="Enter your full name">
+          </div>
+          <div class="form-group">
+            <label>WhatsApp Number</label>
+            <input type="tel" id="request-mobile" placeholder="10-digit WhatsApp number" maxlength="10">
+          </div>
+          <div class="form-group">
+            <label>Location (optional)</label>
+            <input type="text" id="request-location" placeholder="Your area / city">
+          </div>
+          <div id="request-error" style="color:#EF9A9A;font-size:.79rem;margin-bottom:.6rem;display:none"></div>
+          <div id="request-success" style="color:#81C784;font-size:.85rem;margin-bottom:.6rem;display:none">Request sent! We'll WhatsApp you your access code shortly.</div>
+          <button class="btn yellow full" id="requestCodeBtn" onclick="submitCodeRequest()">Request My Code →</button>
+        </div>
       </div>
     </div>
 
@@ -662,6 +684,7 @@ const firebaseConfig = {
 const CODES_COL = "cat_codes";
 const RESULTS_COL = "cat_results";
 const CONFIG_COL = "cat_config";
+const REQUESTS_COL = "cat_requests";
 
 firebase.initializeApp(firebaseConfig);
 const _db = firebase.firestore();
@@ -690,6 +713,48 @@ let verifiedRecord = null;
 })();
 
 /* ============ CODE VERIFICATION ============ */
+/* ============ REQUEST A CODE (no code yet) ============ */
+window.toggleRequestForm = function () {
+  const wrap = document.getElementById("requestFormWrap");
+  wrap.style.display = wrap.style.display === "none" ? "block" : "none";
+};
+
+window.submitCodeRequest = async function () {
+  const name = document.getElementById("request-name").value.trim();
+  const mobile = document.getElementById("request-mobile").value.trim();
+  const location = document.getElementById("request-location").value.trim();
+  const errEl = document.getElementById("request-error");
+  const successEl = document.getElementById("request-success");
+  const btn = document.getElementById("requestCodeBtn");
+
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+
+  if (!name || mobile.length !== 10) {
+    errEl.style.display = "block";
+    errEl.textContent = "Please enter your name and a valid 10-digit WhatsApp number.";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    await _db.collection(REQUESTS_COL).add({
+      name, mobile, location: location || null,
+      createdAt: new Date().toISOString(),
+      actioned: false,
+    });
+    successEl.style.display = "block";
+    document.getElementById("request-name").value = "";
+    document.getElementById("request-mobile").value = "";
+    document.getElementById("request-location").value = "";
+  } catch (e) {
+    console.error(e);
+    errEl.style.display = "block";
+    errEl.textContent = "Could not send your request. Please check your connection and try again.";
+  }
+  btn.disabled = false; btn.textContent = "Request My Code →";
+};
+
 window.verifyCode = async function () {
   const code = document.getElementById("verify-code").value.trim().toUpperCase();
   const name = document.getElementById("verify-name").value.trim();
@@ -872,7 +937,7 @@ window.addEventListener("scroll", () => {
 });
 
 /* ============ MOBILE INPUT RESTRICTION ============ */
-["verify-mobile"].forEach((id) => {
+["verify-mobile", "request-mobile"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", () => { el.value = el.value.replace(/\D/g, "").slice(0, 10); });
   });
