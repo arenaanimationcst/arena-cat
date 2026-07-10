@@ -80,6 +80,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
 }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="pdf-generator.js"></script>
@@ -90,9 +91,11 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
   <div style="max-width:380px;width:90%;background:rgba(255,255,255,.04);border:1px solid rgba(255,212,0,.22);padding:2.5rem;text-align:center">
     <div style="font-family:var(--font-display);font-size:1.8rem;margin-bottom:.3rem">CAT <em style="color:var(--yellow);font-style:italic">Admin</em></div>
     <div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--yellow);margin-bottom:1.5rem">Career Assessment Test · Arena Animation</div>
-    <input type="password" id="loginPw" placeholder="Enter admin password" autocomplete="new-password" style="margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkLogin()">
-    <div id="loginErr" style="color:#EF9A9A;font-size:.8rem;margin-bottom:1rem;display:none">Incorrect password.</div>
+    <input type="email" id="loginEmail" placeholder="Admin email" autocomplete="username" style="margin-bottom:.8rem">
+    <input type="password" id="loginPw" placeholder="Password" autocomplete="current-password" style="margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkLogin()">
+    <div id="loginErr" style="color:#EF9A9A;font-size:.8rem;margin-bottom:1rem;display:none">Incorrect email or password.</div>
     <button class="btn full" onclick="checkLogin()">Enter</button>
+    <div id="loginLoading" style="font-size:.75rem;color:var(--text-muted);margin-top:1rem;display:none">Checking session…</div>
   </div>
 </div>
 
@@ -120,6 +123,11 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
     </div>
 
     <div class="card" id="tabGenerate">
+      <div id="pendingRequestsWrap" style="margin-bottom:1.6rem;display:none">
+        <h2 style="font-size:1.2rem">Pending <em>Requests</em></h2>
+        <div id="pendingRequestsList" style="margin-top:.8rem"></div>
+      </div>
+
       <h2>Generate <em>Access Code</em></h2>
       <div class="form-row2">
         <div class="form-group">
@@ -152,7 +160,10 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
         </div>
         <label>WhatsApp Message (tap to copy)</label>
         <textarea id="genWhatsapp" readonly style="width:100%;min-height:170px;background:rgba(255,255,255,.05);border:1px solid rgba(255,212,0,.25);color:var(--cream);padding:.8rem 1rem;font-family:var(--font-body);font-size:.85rem" onclick="this.select()"></textarea>
-        <button class="btn" style="margin-top:.8rem" onclick="copyWhatsapp()">Copy WhatsApp Message</button>
+        <div style="display:flex;gap:.6rem;margin-top:.8rem;flex-wrap:wrap">
+          <button class="btn" onclick="copyWhatsapp()">Copy Message</button>
+          <button class="btn yellow" onclick="openWhatsapp()">📲 Open WhatsApp &amp; Send</button>
+        </div>
       </div>
     </div>
 
@@ -517,6 +528,7 @@ window.downloadCounselorNotes = function(codeId){
 
 /* ============ GENERATE ACCESS CODE ============ */
 let lastGeneratedCode = "";
+let lastGeneratedMobile = "";
 
 function makeCode(){
   const n = Math.floor(1000 + Math.random()*9000);
@@ -547,7 +559,15 @@ window.generateCode = async function(){
       name, mobile, used: false, generatedAt: new Date().toISOString(), assignedCounselor: counselor,
     });
 
+    // If this came from a pending request, mark it actioned so it drops off the list
+    if(window.__activeRequestId){
+      try{ await _db.collection(REQUESTS_COL).doc(window.__activeRequestId).update({ actioned: true }); }catch(e){}
+      window.__activeRequestId = null;
+      loadPendingRequests();
+    }
+
     lastGeneratedCode = code;
+    lastGeneratedMobile = mobile;
     document.getElementById('genCodeDisplay').textContent = code;
     document.getElementById('genWhatsapp').value = buildWhatsappMessage(name, mobile, code);
     document.getElementById('genResultWrap').style.display = 'block';
@@ -564,6 +584,55 @@ window.copyCode = function(){
 window.copyWhatsapp = function(){
   const ta = document.getElementById('genWhatsapp');
   navigator.clipboard.writeText(ta.value);
+};
+
+// Opens WhatsApp Web/App directly with the message pre-filled, addressed to
+// the student's own number — text-only prefill via wa.me works reliably,
+// unlike file attachments which no URL scheme can automate.
+window.openWhatsapp = function(){
+  let mobile = lastGeneratedMobile;
+  if(!mobile || mobile.length !== 10){
+    mobile = prompt('WhatsApp number not on file — enter the 10-digit number to send to:');
+    if(!mobile || mobile.trim().length !== 10){ alert('A valid 10-digit number is needed to open WhatsApp.'); return; }
+    mobile = mobile.trim();
+  }
+  const msg = document.getElementById('genWhatsapp').value;
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+
+/* ============ PENDING CODE REQUESTS (from the hero page) ============ */
+const REQUESTS_COL = "cat_requests";
+
+async function loadPendingRequests(){
+  const wrap = document.getElementById('pendingRequestsWrap');
+  const list = document.getElementById('pendingRequestsList');
+  try{
+    const snap = await _db.collection(REQUESTS_COL).get();
+    const pending = [];
+    snap.forEach(d => { const r = { id: d.id, ...d.data() }; if(!r.actioned) pending.push(r); });
+
+    if(pending.length === 0){ wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    pending.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    list.innerHTML = pending.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,212,0,.06);border:1px solid rgba(255,212,0,.2);padding:.7rem 1rem;margin-bottom:.6rem;flex-wrap:wrap;gap:.5rem">
+        <div style="font-size:.85rem">
+          <b>${r.name}</b> · ${r.mobile}${r.location ? ' · ' + r.location : ''}
+        </div>
+        <button class="btn yellow" style="padding:.4rem .9rem;font-size:.75rem" onclick="useRequest('${r.id}','${r.name.replace(/'/g,"")}','${r.mobile}')">Use This →</button>
+      </div>
+    `).join('');
+  }catch(e){
+    console.error('Could not load pending requests:', e);
+    wrap.style.display = 'none';
+  }
+}
+
+window.useRequest = function(requestId, name, mobile){
+  document.getElementById('gen-name').value = name;
+  document.getElementById('gen-mobile').value = mobile;
+  window.__activeRequestId = requestId;
+  document.getElementById('gen-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
 /* ============ TABS ============ */
@@ -590,6 +659,7 @@ window.checkLogin = function(){
     }
     loadDashboard(); // load in the background so data's ready the moment you click the tab
     loadPricingForm();
+    loadPendingRequests();
   } else {
     document.getElementById('loginErr').style.display = 'block';
   }
