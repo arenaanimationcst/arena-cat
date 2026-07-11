@@ -348,7 +348,7 @@ input,select{width:100%;padding:.8rem;background:#1f1f1f;border:1px solid rgba(2
             <input type="tel" id="request-mobile" placeholder="10-digit WhatsApp number" maxlength="10">
           </div>
           <div class="form-group">
-            <label>Location (optional)</label>
+            <label>Location</label>
             <input type="text" id="request-location" placeholder="Your area / city">
           </div>
           <div id="request-error" style="color:#EF9A9A;font-size:.79rem;margin-bottom:.6rem;display:none"></div>
@@ -730,16 +730,26 @@ window.submitCodeRequest = async function () {
   errEl.style.display = "none";
   successEl.style.display = "none";
 
-  if (!name || mobile.length !== 10) {
+  if (!name || mobile.length !== 10 || !location) {
     errEl.style.display = "block";
-    errEl.textContent = "Please enter your name and a valid 10-digit WhatsApp number.";
+    errEl.textContent = "Please enter your name, a valid 10-digit WhatsApp number, and your location.";
     return;
   }
 
   btn.disabled = true; btn.textContent = "Sending…";
   try {
+    // One request per WhatsApp number — mobile is what actually delivers the
+    // code, so it's the more reliable uniqueness check than email here.
+    const existing = await _db.collection(REQUESTS_COL).where("mobile", "==", mobile).limit(1).get();
+    if (!existing.empty) {
+      errEl.style.display = "block";
+      errEl.textContent = "A request from this WhatsApp number has already been sent. Please check WhatsApp, or contact Arena Animation CST directly if you haven't heard back.";
+      btn.disabled = false; btn.textContent = "Request My Code →";
+      return;
+    }
+
     await _db.collection(REQUESTS_COL).add({
-      name, mobile, location: location || null,
+      name, mobile, location,
       createdAt: new Date().toISOString(),
       actioned: false,
     });
