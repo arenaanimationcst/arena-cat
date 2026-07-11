@@ -95,7 +95,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
     <input type="password" id="loginPw" placeholder="Password" autocomplete="current-password" style="margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkLogin()">
     <div id="loginErr" style="color:#EF9A9A;font-size:.8rem;margin-bottom:1rem;display:none">Incorrect email or password.</div>
     <button class="btn full" onclick="checkLogin()">Enter</button>
-    <div id="loginLoading" style="font-size:.75rem;color:var(--text-muted);margin-top:1rem;display:none">Checking session…</div>
+    <div id="loginLoading" style="font-size:.75rem;color:var(--text-muted);margin-top:1rem;display:block">Checking session…</div>
   </div>
 </div>
 
@@ -212,6 +212,7 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
             <option value="">All</option>
             <option value="done">Completed</option>
             <option value="pending">In Progress</option>
+            <option value="requested">Requested (no code yet)</option>
           </select>
         </div>
         <div class="form-group">
@@ -309,9 +310,10 @@ async function loadDashboard(){
   const tbody = document.getElementById('resultsTbody');
   tbody.innerHTML = '<tr><td colspan="15" class="loading">Loading…</td></tr>';
   try{
-    const [codesSnap, resultsSnap] = await Promise.all([
+    const [codesSnap, resultsSnap, requestsSnap] = await Promise.all([
       _db.collection(CODES_COL).get(),
       _db.collection(RESULTS_COL).get(),
+      _db.collection(REQUESTS_COL).get(),
     ]);
 
     const resultsByCode = {};
@@ -354,6 +356,21 @@ async function loadDashboard(){
       }
     });
 
+    // Raw leads that haven't been converted into a code yet — this is what
+    // makes the date filter actually show "lead capture" volume over time,
+    // not just codes/completions. Actioned requests are skipped here since
+    // they already appear above via their resulting code entry.
+    requestsSnap.forEach(d => {
+      const r = { id: d.id, ...d.data() };
+      if (!r.actioned) {
+        merged.push({
+          id: null, code: null, name: r.name, mobile: r.mobile, email: null,
+          stream: null, assignedCounselor: null, profile: null, createdAt: r.createdAt,
+          isLeadOnly: true, location: r.location || null,
+        });
+      }
+    });
+
     allRecords = merged;
     applyFilters();
   }catch(e){
@@ -372,7 +389,8 @@ function applyFilters(){
 
   let filtered = allRecords.filter(r=>{
     if(status === 'done' && !r.profile) return false;
-    if(status === 'pending' && r.profile) return false;
+    if(status === 'pending' && (r.profile || r.isLeadOnly)) return false;
+    if(status === 'requested' && !r.isLeadOnly) return false;
     if(interest && r.profile?.interest !== interest) return false;
     if(counselor && r.assignedCounselor !== counselor) return false;
     if(search){
@@ -404,7 +422,8 @@ function clearFilters(){
 function renderStats(records){
   const total = records.length;
   const completed = records.filter(r=>r.profile).length;
-  const inProgress = total - completed;
+  const leads = records.filter(r=>r.isLeadOnly).length;
+  const inProgress = total - completed - leads;
 
   const counts = {};
   records.forEach(r=>{
@@ -414,9 +433,10 @@ function renderStats(records){
   const topSignal = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
 
   document.getElementById('statPills').innerHTML = `
-    <div class="pill"><b>${total}</b>Total Submissions</div>
-    <div class="pill"><b>${completed}</b>Completed</div>
+    <div class="pill"><b>${total}</b>Total (Leads + Codes)</div>
+    <div class="pill"><b>${leads}</b>Leads (No Code Yet)</div>
     <div class="pill"><b>${inProgress}</b>In Progress</div>
+    <div class="pill"><b>${completed}</b>Completed</div>
     <div class="pill"><b>${topSignal ? INTEREST_LABELS[topSignal] : '—'}</b>Most Common Interest</div>
   `;
 }
@@ -434,7 +454,9 @@ function renderTable(records){
     const dateDisplay = isNaN(d) ? '—' : d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
     const p = r.profile || {};
     const ds = p.decisionStyle || {};
-    const statusHtml = r.profile ? '<span class="status-done">✓ Completed</span>' : '<span class="status-pending">⏳ In Progress</span>';
+    const statusHtml = r.profile ? '<span class="status-done">✓ Completed</span>'
+                      : r.isLeadOnly ? '<span class="status-error">📝 Requested</span>'
+                      : '<span class="status-pending">⏳ In Progress</span>';
     const reportHtml = r.profile
       ? `<a class="pdflink" href="#" onclick="downloadReport('${r.code}');return false">Download</a> · <a class="pdflink" href="#" onclick="downloadCounselorNotes('${r.code}');return false">Counsellor Notes</a>`
       : '—';
@@ -442,7 +464,7 @@ function renderTable(records){
     const decisionHtml = [ds.towardAway, ds.internalExternal, ds.convincer].filter(Boolean).join(' / ');
     const codeHtml = r.code
       ? `<span style="font-weight:700">${r.code}</span> <a class="pdflink" href="#" onclick="copyWhatsappForRow('${r.code}');return false" title="Copy WhatsApp message">📋</a>`
-      : '—';
+      : (r.isLeadOnly ? `<span style="color:var(--text-muted);font-size:.78rem">Lead · ${r.location||'no location'}</span>` : '—');
 
     return `<tr>
       <td>${dateDisplay}</td>
@@ -645,24 +667,56 @@ window.switchTab = function(tab){
   if(!isGen) loadDashboard();
 };
 
-/* ============ LOGIN ============ */
-// *** Change this before going live — same placeholder pattern as ArenaAspire admin ***
-const ADMIN_PASSWORD = "Arena@Faiz786";
+/* ============ LOGIN — real Firebase Authentication ============ */
+const _auth = firebase.auth();
+
+function onSuccessfulLogin(){
+  document.getElementById('loginGate').style.display = 'none';
+  document.getElementById('adminContent').style.display = 'block';
+  if(!FIREBASE_CONFIGURED){
+    document.getElementById('configWarning').style.display = 'block';
+  }
+  loadDashboard();
+  loadPricingForm();
+  loadPendingRequests();
+}
+
+// Auto-restores your session on refresh — you only need to log in again if
+// you explicitly log out or your browser clears storage.
+_auth.onAuthStateChanged((user) => {
+  document.getElementById('loginLoading').style.display = 'none';
+  if(user){
+    onSuccessfulLogin();
+  } else {
+    document.getElementById('loginGate').style.display = 'flex';
+    document.getElementById('adminContent').style.display = 'none';
+  }
+});
 
 window.checkLogin = function(){
+  const email = document.getElementById('loginEmail').value.trim();
   const pw = document.getElementById('loginPw').value;
-  if(pw === ADMIN_PASSWORD){
-    document.getElementById('loginGate').style.display = 'none';
-    document.getElementById('adminContent').style.display = 'block';
-    if(!FIREBASE_CONFIGURED){
-      document.getElementById('configWarning').style.display = 'block';
-    }
-    loadDashboard(); // load in the background so data's ready the moment you click the tab
-    loadPricingForm();
-    loadPendingRequests();
-  } else {
-    document.getElementById('loginErr').style.display = 'block';
+  const errEl = document.getElementById('loginErr');
+  errEl.style.display = 'none';
+
+  if(!email || !pw){
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please enter both email and password.';
+    return;
   }
+
+  _auth.signInWithEmailAndPassword(email, pw)
+    .catch((err) => {
+      console.error(err);
+      errEl.style.display = 'block';
+      errEl.textContent = err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found'
+        ? 'Incorrect email or password.'
+        : 'Could not sign in — check your connection, or that Email/Password sign-in is enabled in Firebase.';
+    });
+};
+
+window.adminLogout = function(){
+  _auth.signOut();
 };
 
 async function loadPricingForm(){
