@@ -342,6 +342,7 @@ async function loadDashboard(){
         assignedCounselor: (result && result.assignedCounselor) || code.assignedCounselor || null,
         profile: result ? result.profile : null,
         createdAt: (result && result.createdAt) || code.generatedAt,
+        whatsappSent: !!code.whatsappSent,
       });
     });
 
@@ -463,7 +464,9 @@ function renderTable(records){
     const needsHtml = (p.needsTop2||[]).map(n=>`<span class="badge">${n}</span>`).join(' ');
     const decisionHtml = [ds.towardAway, ds.internalExternal, ds.convincer].filter(Boolean).join(' / ');
     const codeHtml = r.code
-      ? `<span style="font-weight:700">${r.code}</span> <a class="pdflink" href="#" onclick="copyWhatsappForRow('${r.code}');return false" title="Copy WhatsApp message">📋</a>`
+      ? `<span style="font-weight:700">${r.code}</span> `
+        + `<a class="pdflink" href="#" onclick="sendWhatsappForRow('${r.code}');return false" title="Send via WhatsApp">📲</a> `
+        + (r.whatsappSent ? `<span title="Sent" style="color:#81C784">✓</span>` : '')
       : (r.isLeadOnly ? `<span style="color:var(--text-muted);font-size:.78rem">Lead · ${r.location||'no location'}</span>` : '—');
 
     return `<tr>
@@ -532,6 +535,26 @@ window.copyWhatsappForRow = function(codeId){
   }).catch(() => {
     alert('Could not copy automatically. Message:\n\n' + msg);
   });
+};
+
+// One click: opens WhatsApp with the message pre-filled to that student's
+// number, and marks the code as sent — the tick (✓) persists across reloads
+// since it's saved on the code doc in Firestore, not just in the browser.
+window.sendWhatsappForRow = async function(codeId){
+  const record = allRecords.find(r => r.code === codeId);
+  if(!record || !record.mobile || record.mobile.length !== 10){
+    alert('No valid mobile number on file for this code.');
+    return;
+  }
+  const msg = buildWhatsappMessage(record.name || '', record.mobile, codeId);
+  window.open(`https://wa.me/91${record.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+  try{
+    await _db.collection(CODES_COL).doc(codeId).update({ whatsappSent: true });
+    record.whatsappSent = true;
+    applyFilters(); // re-render so the tick shows immediately
+  }catch(e){
+    console.error('Could not save sent status:', e);
+  }
 };
 
 window.downloadCounselorNotes = function(codeId){
