@@ -143,10 +143,10 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
         <label>Assign Counsellor</label>
         <select id="gen-counselor">
           <option value="">Unassigned</option>
-          <option>Counsellor 1</option>
-          <option>Counsellor 2</option>
-          <option>Counsellor 3</option>
-          <option>Counsellor 4</option>
+          <option>Faiz Riaz</option>
+          <option>Mobin Khan</option>
+          <option>Mihir Chawda</option>
+          <option>Aarti Yadav</option>
         </select>
       </div>
       <div id="genError" style="color:#EF9A9A;font-size:.82rem;margin-bottom:1rem;display:none"></div>
@@ -231,10 +231,10 @@ a.pdflink{color:var(--yellow);text-decoration:underline}
           <label>Counsellor</label>
           <select id="filterCounselor">
             <option value="">All</option>
-            <option>Counsellor 1</option>
-            <option>Counsellor 2</option>
-            <option>Counsellor 3</option>
-            <option>Counsellor 4</option>
+            <option>Faiz Riaz</option>
+            <option>Mobin Khan</option>
+            <option>Mihir Chawda</option>
+            <option>Aarti Yadav</option>
           </select>
         </div>
         <div class="form-group" style="flex:1;min-width:220px">
@@ -641,7 +641,7 @@ async function loadPendingRequests(){
         <div style="font-size:.85rem">
           <b>${r.name}</b> · ${r.mobile}${r.location ? ' · ' + r.location : ''}
         </div>
-        <button class="btn yellow" style="padding:.4rem .9rem;font-size:.75rem" onclick="useRequest('${r.id}','${r.name.replace(/'/g,"")}','${r.mobile}')">Use This →</button>
+        <button class="btn yellow" style="padding:.4rem .9rem;font-size:.75rem" onclick="generateCodeFromRequest('${r.id}','${r.name.replace(/'/g,"")}','${r.mobile}')">Generate Code →</button>
       </div>
     `).join('');
   }catch(e){
@@ -649,6 +649,17 @@ async function loadPendingRequests(){
     wrap.style.display = 'none';
   }
 }
+
+// One click from a pending lead straight to a generated code + WhatsApp
+// message — no separate form-fill-then-click-again step. Uses whichever
+// counsellor is currently selected in the dropdown above.
+window.generateCodeFromRequest = async function(requestId, name, mobile){
+  document.getElementById('gen-name').value = name;
+  document.getElementById('gen-mobile').value = mobile;
+  window.__activeRequestId = requestId;
+  await generateCode();
+  document.getElementById('genResultWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
 
 window.useRequest = function(requestId, name, mobile){
   document.getElementById('gen-name').value = name;
