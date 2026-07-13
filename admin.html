@@ -511,18 +511,19 @@ window.downloadReport = function(codeId){
 // Admin-only document — talking points and full score breakdown for the
 // counsellor conversation. Never shown or offered to the student.
 function buildWhatsappMessage(name, mobile, code){
-  const STAR = "\u2605", ARROW = "\u2192", PHONE_ICO = "\u260E", DASH = "\u2014", BULLET = "\u2022";
-  return `${STAR} *Arena Animation CST ${DASH} Career Assessment Test*
+  const CLAPPER = "\u{1F3AC}", PERSON = "\u{1F464}", MOBILE_ICO = "\u{1F4F1}",
+        KEY = "\u{1F511}", POINT = "\u{1F449}", STAR = "\u{1F31F}", PHONE = "\u{1F4DE}", DASH = "\u{2014}";
+  return `${CLAPPER} *Arena Animation CST ${DASH} Career Assessment Test*
 Hi ${name}!
 You have been registered for the Arena Animation CST Career Assessment Test. Here are your login details:
-${BULLET} *Name:* ${name}
-${BULLET} *Mobile:* ${mobile}
-${BULLET} *Access Code:* *${code}*
+${PERSON} *Name:* ${name}
+${MOBILE_ICO} *Mobile:* ${mobile}
+${KEY} *Access Code:* *${code}*
 Use these exact details to start your test. The assessment takes about 12 minutes and gives you a personalised career report with a course recommendation.
-${ARROW} Test Link: https://arenaanimationcst.github.io/arena-cat/
+${POINT} Test Link: https://arenaanimationcst.github.io/arena-cat/
 Good luck! ${STAR}
 ${DASH} Arena Animation CST, Fort, Mumbai
-${PHONE_ICO} 088288 23738`;
+${PHONE} 088288 23738`;
 }
 
 // Works for ANY row in the dashboard, any time — completed or still pending,
